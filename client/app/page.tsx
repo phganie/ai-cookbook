@@ -1,8 +1,8 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { RecipeLLMOutput } from "../../../shared/types";
-import { API_BASE_URL } from "../../../shared/config";
+import { RecipeLLMOutput } from "@shared/types";
+import { API_BASE_URL } from "@shared/config";
 
 const API_BASE = API_BASE_URL;
 

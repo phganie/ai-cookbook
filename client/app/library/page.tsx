@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { RecipeListItem } from "../../../shared/types";
-import { API_BASE_URL } from "../../../shared/config";
+import { RecipeListItem } from "@shared/types";
+import { API_BASE_URL } from "@shared/config";
 
 const API_BASE = API_BASE_URL;
 

@@ -46,7 +46,7 @@ cookbook/
    # Edit .env and add your Vertex AI configuration:
    # VERTEX_PROJECT_ID=your-gcp-project-id
    # VERTEX_LOCATION=us-central1
-   # VERTEX_MODEL=gemini-1.5-flash
+   # VERTEX_MODEL=gemini-2.5-flash
    # DATABASE_URL=postgresql+psycopg2://username@localhost:5432/cookclip
    # (or leave DATABASE_URL unset to use SQLite)
    ```
@@ -153,7 +153,7 @@ The app will be available at `http://localhost:3000`
 |----------|----------|---------|-------------|
 | `VERTEX_PROJECT_ID` | Yes | - | Google Cloud project ID with Vertex AI enabled |
 | `VERTEX_LOCATION` | No | `us-central1` | GCP region for Vertex AI (e.g., us-central1, us-east1) |
-| `VERTEX_MODEL` | No | `gemini-1.5-flash` | Gemini model name (gemini-1.5-flash, gemini-1.5-pro) |
+| `VERTEX_MODEL` | No | `gemini-2.5-flash` | Gemini model name (gemini-1.5-flash, gemini-1.5-pro) |
 | `DATABASE_URL` | No | `sqlite:///./cookclip.db` | Database connection string |
 | `YOUTUBE_COOKIE` | No | - | Path to cookies file for restricted videos |
 | `ENVIRONMENT` | No | `development` | Environment mode |
