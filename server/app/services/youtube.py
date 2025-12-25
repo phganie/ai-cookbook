@@ -72,7 +72,7 @@ def get_youtube_transcript(url: str) -> Tuple[str, List[dict]]:
             raise ValueError("Transcript was empty")
         return text, transcript
 
-    except (NoTranscriptFound, TranscriptsDisabled, VideoUnavailable) as exc:
+    except Exception as exc:
         logger.error("Transcript not available for video %s: %s", video_id, exc)
         raise ValueError(
             f"No transcript available for video {video_id}. "
