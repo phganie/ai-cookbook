@@ -1,41 +1,16 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import { RecipeLLMOutput } from "../../../shared/types";
+import { API_BASE_URL } from "../../../shared/config";
 
-type Ingredient = {
-  name: string;
-  amount: number | null;
-  unit: string | null;
-  prep: string | null;
-  source: "explicit" | "inferred";
-  evidence: { start_sec: number; end_sec: number; quote: string };
-};
-
-type Step = {
-  step_number: number;
-  text: string;
-  start_sec: number;
-  end_sec: number;
-  evidence_quote: string;
-};
-
-type ExtractedRecipe = {
-  title: string;
-  servings: number | null;
-  ingredients: Ingredient[];
-  steps: Step[];
-  missing_info: string[];
-  notes: string[];
-};
-
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+const API_BASE = API_BASE_URL;
 
 export default function HomePage() {
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<ExtractedRecipe | null>(null);
+  const [data, setData] = useState<RecipeLLMOutput | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [savedId, setSavedId] = useState<string | null>(null);
@@ -61,7 +36,7 @@ export default function HomePage() {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.detail ?? "Failed to extract recipe.");
       }
-      const json = (await res.json()) as ExtractedRecipe;
+      const json = (await res.json()) as RecipeLLMOutput;
       setData(json);
     } catch (err) {
       setError(

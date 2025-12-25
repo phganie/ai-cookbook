@@ -1,38 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Recipe } from "../../../../shared/types";
+import { API_BASE_URL } from "../../../../shared/config";
 
-type Ingredient = {
-  name: string;
-  amount: number | null;
-  unit: string | null;
-  prep: string | null;
-  source: "explicit" | "inferred";
-  evidence: { start_sec: number; end_sec: number; quote: string };
-};
-
-type Step = {
-  step_number: number;
-  text: string;
-  start_sec: number;
-  end_sec: number;
-  evidence_quote: string;
-};
-
-type Recipe = {
-  id: string;
-  title: string;
-  servings: number | null;
-  source_url: string;
-  source_platform: string;
-  ingredients: Ingredient[];
-  steps: Step[];
-  missing_info: string[];
-  notes: string[];
-};
-
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+const API_BASE = API_BASE_URL;
 
 export default function RecipePage({
   params

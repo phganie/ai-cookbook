@@ -32,8 +32,19 @@ poetry install
    ```
 
 2. Edit `.env` and fill in your values:
-   - `OPENAI_API_KEY` (required)
+   - `VERTEX_PROJECT_ID` (required) - Your Google Cloud project ID
+   - `VERTEX_LOCATION` (optional, defaults to us-central1)
+   - `VERTEX_MODEL` (optional, defaults to gemini-1.5-flash)
    - `DATABASE_URL` (optional, defaults to SQLite)
+
+3. Set up Google Cloud authentication:
+   ```bash
+   # Option A: Application Default Credentials (recommended for local dev)
+   gcloud auth application-default login
+   
+   # Option B: Service Account Key
+   export GOOGLE_APPLICATION_CREDENTIALS="/path/to/service-account-key.json"
+   ```
 
 ## Running
 

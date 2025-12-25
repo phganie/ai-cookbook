@@ -18,7 +18,7 @@ cookbook/
 - **Python 3.11+** (for backend)
 - **Node.js 18+** (for frontend)
 - **PostgreSQL** (optional; defaults to SQLite for local dev)
-- **OpenAI API Key** (required for recipe extraction)
+- **Google Cloud Project** with Vertex AI enabled (required for recipe extraction)
 
 ### Backend Setup
 
@@ -43,13 +43,24 @@ cookbook/
    # Copy example env file
    cp .env.example .env
    
-   # Edit .env and add your OpenAI API key:
-   # OPENAI_API_KEY=sk-your-key-here
+   # Edit .env and add your Vertex AI configuration:
+   # VERTEX_PROJECT_ID=your-gcp-project-id
+   # VERTEX_LOCATION=us-central1
+   # VERTEX_MODEL=gemini-1.5-flash
    # DATABASE_URL=postgresql+psycopg2://username@localhost:5432/cookclip
    # (or leave DATABASE_URL unset to use SQLite)
    ```
 
-5. **Run the server:**
+5. **Set up Google Cloud authentication:**
+   ```bash
+   # Option A: Application Default Credentials (recommended for local dev)
+   gcloud auth application-default login
+   
+   # Option B: Service Account Key
+   export GOOGLE_APPLICATION_CREDENTIALS="/path/to/service-account-key.json"
+   ```
+
+6. **Run the server:**
    ```bash
    uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
    ```
@@ -140,10 +151,15 @@ The app will be available at `http://localhost:3000`
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `OPENAI_API_KEY` | Yes | - | OpenAI API key for recipe extraction |
+| `VERTEX_PROJECT_ID` | Yes | - | Google Cloud project ID with Vertex AI enabled |
+| `VERTEX_LOCATION` | No | `us-central1` | GCP region for Vertex AI (e.g., us-central1, us-east1) |
+| `VERTEX_MODEL` | No | `gemini-1.5-flash` | Gemini model name (gemini-1.5-flash, gemini-1.5-pro) |
 | `DATABASE_URL` | No | `sqlite:///./cookclip.db` | Database connection string |
 | `YOUTUBE_COOKIE` | No | - | Path to cookies file for restricted videos |
 | `ENVIRONMENT` | No | `development` | Environment mode |
+| `GOOGLE_APPLICATION_CREDENTIALS` | No* | - | Path to service account JSON (if not using ADC) |
+
+\* Authentication required via either `gcloud auth application-default login` or `GOOGLE_APPLICATION_CREDENTIALS`
 
 ### Frontend (`client/.env.local`)
 
@@ -157,7 +173,7 @@ The app will be available at `http://localhost:3000`
 - **FastAPI** – Web framework
 - **SQLAlchemy** – ORM
 - **PostgreSQL/SQLite** – Database
-- **OpenAI** – LLM for recipe extraction
+- **Google Vertex AI (Gemini)** – LLM for recipe extraction with enterprise governance
 - **youtube-transcript-api** – Transcript fetching
 - **Whisper** – Audio transcription fallback
 - **yt-dlp** – Video/audio download

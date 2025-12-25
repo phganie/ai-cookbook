@@ -2,7 +2,8 @@ import json
 import logging
 from typing import Any, Dict
 
-from openai import OpenAI
+from vertexai.generative_models import GenerativeModel
+from google.cloud import aiplatform
 
 from ..config import get_settings
 from ..schemas import RecipeLLMOutput
@@ -60,46 +61,75 @@ def build_user_prompt(transcript: str) -> str:
     )
 
 
-def get_openai_client() -> OpenAI:
+def initialize_vertex_ai() -> None:
+    """Initialize Vertex AI with project and location."""
     settings = get_settings()
-    if not settings.openai_api_key:
-        raise RuntimeError("OPENAI_API_KEY is not set")
-    return OpenAI(api_key=settings.openai_api_key)
+    if not settings.vertex_project_id:
+        raise RuntimeError("VERTEX_PROJECT_ID is not set")
+    
+    aiplatform.init(
+        project=settings.vertex_project_id,
+        location=settings.vertex_location or "us-central1",
+    )
 
 
 def call_llm_for_recipe(
     transcript_text: str,
-    model: str = "gpt-4o-mini",
+    model: str | None = None,
     max_retries: int = 3,
 ) -> RecipeLLMOutput:
-    client = get_openai_client()
+    """Call Vertex AI Gemini to extract recipe from transcript."""
+    settings = get_settings()
+    initialize_vertex_ai()
+    
+    # Use model from settings or parameter
+    model_name = model or settings.vertex_model
+    
     system_prompt = EXTRACTION_SYSTEM_PROMPT.strip()
     user_prompt = build_user_prompt(transcript_text)
+    
+    # Combine system and user prompts
+    full_prompt = f"{system_prompt}\n\n{user_prompt}"
 
     last_error: Exception | None = None
 
     for attempt in range(1, max_retries + 1):
         try:
-            logger.info("Calling LLM for recipe extraction attempt=%s", attempt)
+            logger.info("Calling Vertex AI Gemini for recipe extraction attempt=%s, model=%s", attempt, model_name)
 
-            response = client.chat.completions.create(
-                model=model,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
-                response_format={"type": "json_object"},
+            # Initialize the model with generation config for JSON output
+            model_instance = GenerativeModel(
+                model_name=model_name,
             )
 
-            content = response.choices[0].message.content
+            # Generate content with JSON response format
+            response = model_instance.generate_content(
+                full_prompt,
+                generation_config={
+                    "temperature": 0.1,
+                    "response_mime_type": "application/json",
+                },
+            )
+
+            content = response.text
             if not content:
-                raise ValueError("Empty response from LLM")
+                raise ValueError("Empty response from Vertex AI")
+
+            # Clean up the response (remove markdown code blocks if present)
+            content = content.strip()
+            if content.startswith("```json"):
+                content = content[7:]  # Remove ```json
+            if content.startswith("```"):
+                content = content[3:]  # Remove ```
+            if content.endswith("```"):
+                content = content[:-3]  # Remove closing ```
+            content = content.strip()
 
             raw_json = json.loads(content)
             parsed = RecipeLLMOutput.model_validate(raw_json)
             return parsed
         except Exception as exc:  # noqa: BLE001
-            logger.exception("Error during LLM extraction attempt=%s: %s", attempt, exc)
+            logger.exception("Error during Vertex AI extraction attempt=%s: %s", attempt, exc)
             last_error = exc
 
     raise RuntimeError(f"Failed to extract recipe after {max_retries} attempts: {last_error}")  # type: ignore[arg-type]
