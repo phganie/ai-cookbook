@@ -4,8 +4,9 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 
 # Load .env only for local development
+# Use override=True to ensure .env values take precedence over shell env vars
 if os.getenv("ENVIRONMENT", "development") == "development":
-    load_dotenv()
+    load_dotenv(override=True)
 
 
 class Settings(BaseModel):
@@ -33,6 +34,12 @@ def get_settings() -> Settings:
     # Reuse VERTEX_PROJECT_ID for GCP if GCP_PROJECT_ID not set
     vertex_project_id = os.getenv("VERTEX_PROJECT_ID")
     gcp_project_id = os.getenv("GCP_PROJECT_ID") or vertex_project_id
+    
+    # Debug logging
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info("Loading settings: VERTEX_PROJECT_ID=%s (from env: %s), GCP_PROJECT_ID=%s", 
+                 vertex_project_id, os.getenv("VERTEX_PROJECT_ID"), gcp_project_id)
     
     return Settings(
         vertex_project_id=vertex_project_id,

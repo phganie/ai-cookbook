@@ -67,6 +67,10 @@ def initialize_vertex_ai() -> None:
     settings = get_settings()
     if not settings.vertex_project_id:
         raise RuntimeError("VERTEX_PROJECT_ID is not set")
+    
+    logger.info("Initializing Vertex AI with project=%s, location=%s", 
+                settings.vertex_project_id, settings.vertex_location)
+    
     aiplatform.init(
         project=settings.vertex_project_id,
         location=settings.vertex_location or "us-central1",

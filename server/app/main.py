@@ -19,6 +19,21 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="CookClip API")
 
+
+@app.on_event("startup")
+async def startup_event():
+    """Clear caches on startup to ensure fresh config loading."""
+    from app.config import get_settings
+    from app.services.llm import initialize_vertex_ai
+    
+    # Clear caches to ensure fresh load from .env
+    get_settings.cache_clear()
+    initialize_vertex_ai.cache_clear()
+    
+    # Log what value is actually loaded
+    settings = get_settings()
+    logger.info("Server startup: VERTEX_PROJECT_ID=%s", settings.vertex_project_id)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
