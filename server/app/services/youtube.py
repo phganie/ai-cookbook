@@ -65,6 +65,7 @@ def get_youtube_transcript(url: str) -> Tuple[str, List[dict]]:
     logger.info("Fetching transcript for video_id=%s", video_id)
 
     try:
+        logger.info("TRANSCRIPT_PICKER_V2 enabled for video_id=%s", video_id)
         transcript = _pick_transcript(video_id)
         text = " ".join(chunk.get("text", "") for chunk in transcript).strip()
         if not text:
