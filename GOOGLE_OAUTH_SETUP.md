@@ -11,18 +11,16 @@ This guide will walk you through setting up Google OAuth authentication for Cook
 
 1. Click the project dropdown at the top of the page
 2. Either:
-   - **Select an existing project** (e.g., `ai-cookbook-482307` if you already have one)
+   - **Select an existing project** (e.g., `ai-cookbook-xxxx` if you already have one)
    - **Create a new project**: Click "New Project" → Enter project name → Click "Create"
 
-## Step 3: Enable Google+ API (or Google Identity Services)
+## Step 3: Create OAuth 2.0 Credentials
 
-1. In the left sidebar, go to **"APIs & Services"** → **"Library"**
-2. Search for **"Google+ API"** or **"Google Identity Services"**
-3. Click on it and click **"Enable"**
+**Note:** You don't need to enable any APIs for basic OAuth 2.0. You can go directly to creating credentials.
 
-## Step 4: Create OAuth 2.0 Credentials
+## Step 4: Navigate to Credentials
 
-1. Go to **"APIs & Services"** → **"Credentials"**
+1. In the left sidebar, go to **"APIs & Services"** → **"Credentials"**
 2. Click **"+ CREATE CREDENTIALS"** at the top
 3. Select **"OAuth client ID"**
 
@@ -37,7 +35,7 @@ This guide will walk you through setting up Google OAuth authentication for Cook
 5. Click **"SAVE AND CONTINUE"** through the steps (you can skip optional fields for now)
 6. Go back to **"Credentials"** → **"+ CREATE CREDENTIALS"** → **"OAuth client ID"**
 
-## Step 5: Configure OAuth Client
+## Step 5: Configure OAuth Client (Web Application)
 
 1. **Application type**: Select **"Web application"**
 2. **Name**: Enter `CookClip Web Client` (or any name)
