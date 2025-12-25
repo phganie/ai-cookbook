@@ -3,6 +3,8 @@
 import { useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "../../../contexts/AuthContext";
+export const dynamic = "force-dynamic";
+
 
 export default function GoogleCallbackPage() {
   const searchParams = useSearchParams();
