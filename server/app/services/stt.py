@@ -1,169 +1,147 @@
 import logging
+import subprocess
+import tempfile
 from pathlib import Path
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
 
+# ---------- Audio helpers ----------
+
+def _run(cmd: list[str]) -> None:
+    subprocess.run(cmd, check=True, capture_output=True, text=True)
+
+
+def convert_to_wav_16k_mono(src: Path, dst: Path) -> Path:
+    """
+    Convert to WAV PCM 16kHz mono (Speech v1 friendly).
+    """
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    cmd = [
+        "ffmpeg", "-y",
+        "-i", str(src),
+        "-ac", "1",
+        "-ar", "16000",
+        "-c:a", "pcm_s16le",
+        str(dst),
+    ]
+    _run(cmd)
+    return dst
+
+
+def get_duration_seconds(path: Path) -> float:
+    """
+    Use ffprobe to get accurate duration in seconds.
+    """
+    out = subprocess.check_output(
+        [
+            "ffprobe", "-v", "error",
+            "-show_entries", "format=duration",
+            "-of", "default=noprint_wrappers=1:nokey=1",
+            str(path),
+        ],
+        text=True,
+    ).strip()
+    return float(out)
+
+
+def slice_wav(input_wav: Path, start_s: float, dur_s: float, out_wav: Path) -> Path:
+    """
+    Cut a WAV segment [start_s, start_s+dur_s).
+    """
+    out_wav.parent.mkdir(parents=True, exist_ok=True)
+    cmd = [
+        "ffmpeg", "-y",
+        "-ss", str(start_s),
+        "-t", str(dur_s),
+        "-i", str(input_wav),
+        "-ac", "1",
+        "-ar", "16000",
+        "-c:a", "pcm_s16le",
+        str(out_wav),
+    ]
+    _run(cmd)
+    return out_wav
+
+
+# ---------- STT ----------
+
 def transcribe_audio_google(
     file_path: Path,
-    project_id: str,
-    location: str,
+    project_id: str,          # kept for signature compatibility
+    location: str,            # kept for signature compatibility
     language_code: str = "en-US",
-    model: str | None = None,
+    model: Optional[str] = None,
     max_audio_seconds: int = 600,
 ) -> str:
     """
-    Transcribe audio file using Google Cloud Speech-to-Text.
-    
-    Uses v2 API if available, falls back to v1.
-    Automatically uses long_running_recognize for audio > 60 seconds.
-    
-    Args:
-        file_path: Path to audio file
-        project_id: GCP project ID
-        location: GCP location (e.g., "us-central1")
-        language_code: Language code (e.g., "en-US")
-        model: Optional model name (e.g., "latest_long")
-        max_audio_seconds: Maximum audio duration in seconds (guardrail)
-    
-    Returns:
-        Concatenated transcript text
+    Robust v1 transcription:
+    - Convert to wav 16k mono
+    - Chunk into 55s segments
+    - Transcribe each chunk and concatenate
     """
-    logger.info(
-        "Transcribing audio: %s (project=%s, location=%s, language=%s)",
-        file_path,
-        project_id,
-        location,
-        language_code,
-    )
-    
-    # Read audio file
-    audio_bytes = file_path.read_bytes()
-    file_size_mb = len(audio_bytes) / (1024 * 1024)
-    logger.info("Audio file size: %.2f MB", file_size_mb)
-    
-    # Try to use v2 API first (google-cloud-speech v2)
-    try:
-        return _transcribe_v2(
-            audio_bytes=audio_bytes,
-            project_id=project_id,
-            location=location,
-            language_code=language_code,
-            model=model,
-            max_audio_seconds=max_audio_seconds,
-        )
-    except ImportError:
-        logger.info("Speech-to-Text v2 not available, falling back to v1")
-        return _transcribe_v1(
-            audio_bytes=audio_bytes,
-            project_id=project_id,
-            location=location,
-            language_code=language_code,
-            model=model,
-            max_audio_seconds=max_audio_seconds,
-        )
-
-
-def _transcribe_v2(
-    audio_bytes: bytes,
-    project_id: str,
-    location: str,
-    language_code: str,
-    model: str | None,
-    max_audio_seconds: int,
-) -> str:
-    """Transcribe using Speech-to-Text v2 API."""
-    from google.cloud import speech_v2
-    from google.cloud.speech_v2 import RecognitionConfig, RecognitionFeatures
-    
-    client = speech_v2.SpeechClient()
-    
-    # Build recognition config
-    config = RecognitionConfig(
-        auto_decoding_config={},  # Auto-detect encoding
-        language_codes=[language_code],
-        model=model or "latest_long",
-        features=RecognitionFeatures(
-            enable_automatic_punctuation=True,
-            enable_word_time_offsets=True,
-        ),
-    )
-    
-    # Build request
-    request = speech_v2.RecognizeRequest(
-        recognizer=f"projects/{project_id}/locations/{location}/recognizers/_",
-        config=config,
-        content=audio_bytes,
-    )
-    
-    # For long audio, use long_running_recognize
-    # Estimate duration: assume ~1MB per minute for typical audio
-    estimated_duration = len(audio_bytes) / (1024 * 1024) * 60
-    
-    if estimated_duration > 60 or len(audio_bytes) > 10 * 1024 * 1024:  # > 60s or > 10MB
-        logger.info("Using long-running recognition (estimated duration: %.1f seconds)", estimated_duration)
-        operation = client.long_running_recognize(request=request)
-        response = operation.result(timeout=300)  # 5 minute timeout
-    else:
-        logger.info("Using synchronous recognition")
-        response = client.recognize(request=request)
-    
-    # Extract transcript
-    transcript_parts = []
-    for result in response.results:
-        for alternative in result.alternatives:
-            transcript_parts.append(alternative.transcript)
-    
-    transcript = " ".join(transcript_parts).strip()
-    logger.info("Transcription completed: %d characters", len(transcript))
-    
-    return transcript
-
-
-def _transcribe_v1(
-    audio_bytes: bytes,
-    project_id: str,
-    location: str,
-    language_code: str,
-    model: str | None,
-    max_audio_seconds: int,
-) -> str:
-    """Transcribe using Speech-to-Text v1 API (fallback)."""
     from google.cloud import speech
-    
-    client = speech.SpeechClient()
-    
-    # Build recognition config
-    config = speech.RecognitionConfig(
-        encoding=speech.RecognitionConfig.AudioEncoding.ENCODING_UNSPECIFIED,
-        sample_rate_hertz=16000,  # Common default
-        language_code=language_code,
-        model=model or "latest_long",
-        enable_automatic_punctuation=True,
-        enable_word_time_offsets=True,
-    )
-    
-    audio = speech.RecognitionAudio(content=audio_bytes)
-    
-    # Estimate duration for long-running recognition
-    estimated_duration = len(audio_bytes) / (1024 * 1024) * 60
-    
-    if estimated_duration > 60 or len(audio_bytes) > 10 * 1024 * 1024:
-        logger.info("Using long-running recognition (estimated duration: %.1f seconds)", estimated_duration)
-        operation = client.long_running_recognize(config=config, audio=audio)
-        response = operation.result(timeout=300)
-    else:
-        logger.info("Using synchronous recognition")
-        response = client.recognize(config=config, audio=audio)
-    
-    # Extract transcript
-    transcript_parts = []
-    for result in response.results:
-        for alternative in result.alternatives:
-            transcript_parts.append(alternative.transcript)
-    
-    transcript = " ".join(transcript_parts).strip()
-    logger.info("Transcription completed: %d characters", len(transcript))
-    
-    return transcript
 
+    logger.info("Transcribing audio via v1 (chunked): %s", file_path)
+
+    with tempfile.TemporaryDirectory() as td:
+        td = Path(td)
+        wav_path = td / "audio.wav"
+
+        convert_to_wav_16k_mono(file_path, wav_path)
+
+        total_sec = get_duration_seconds(wav_path)
+        logger.info("Audio duration: %.2fs", total_sec)
+
+        # hard cap (optional)
+        if total_sec > max_audio_seconds:
+            logger.warning(
+                "Audio %.1fs exceeds max_audio_seconds=%s. Transcribing only first %ss.",
+                total_sec, max_audio_seconds, max_audio_seconds
+            )
+            total_sec = float(max_audio_seconds)
+
+        CHUNK_SEC = 55.0
+
+        client = speech.SpeechClient()
+
+        # v1: don’t force "latest_long" (can cause INVALID_ARGUMENT)
+        config_kwargs = dict(
+            encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
+            sample_rate_hertz=16000,
+            language_code=language_code,
+            enable_automatic_punctuation=True,
+        )
+        # Only include model if you KNOW a v1-valid model string
+        if model:
+            config_kwargs["model"] = model
+
+        config = speech.RecognitionConfig(**config_kwargs)
+
+        parts: list[str] = []
+        start = 0.0
+        idx = 0
+
+        while start < total_sec:
+            dur = min(CHUNK_SEC, total_sec - start)
+            chunk_path = td / f"chunk_{idx:04d}.wav"
+            slice_wav(wav_path, start, dur, chunk_path)
+
+            audio = speech.RecognitionAudio(content=chunk_path.read_bytes())
+
+            logger.info("STT chunk %d: start=%.1fs dur=%.1fs", idx, start, dur)
+
+            # recognize should be fine for 55s chunks
+            resp = client.recognize(config=config, audio=audio)
+
+            for r in resp.results:
+                if r.alternatives:
+                    parts.append(r.alternatives[0].transcript)
+
+            start += dur
+            idx += 1
+
+        transcript = " ".join(p.strip() for p in parts if p.strip()).strip()
+        logger.info("Transcription done. chars=%d", len(transcript))
+        return transcript
