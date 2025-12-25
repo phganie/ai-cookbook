@@ -1,18 +1,60 @@
 import logging
 from typing import List, Tuple
+from urllib.parse import parse_qs, urlparse
 
-from youtube_transcript_api import YouTubeTranscriptApi, NoTranscriptFound
+from youtube_transcript_api import (
+    YouTubeTranscriptApi,
+    NoTranscriptFound,
+    TranscriptsDisabled,
+    VideoUnavailable,
+)
 
 logger = logging.getLogger(__name__)
 
 
 def extract_youtube_video_id(url: str) -> str | None:
-    # Very simple extraction; can be improved.
-    if "v=" in url:
-        return url.split("v=")[-1].split("&")[0]
-    if "youtu.be/" in url:
-        return url.split("youtu.be/")[-1].split("?")[0]
+    """Extract video id from watch?v=, youtu.be/, and /shorts/ URLs."""
+    parsed = urlparse(url)
+
+    # youtu.be/VIDEO_ID
+    if parsed.netloc in ("youtu.be", "www.youtu.be"):
+        vid = parsed.path.lstrip("/")
+        return vid or None
+
+    # youtube.com/watch?v=VIDEO_ID
+    qs = parse_qs(parsed.query or "")
+    if "v" in qs and qs["v"]:
+        return qs["v"][0]
+
+    # youtube.com/shorts/VIDEO_ID
+    if "youtube.com" in parsed.netloc and parsed.path.startswith("/shorts/"):
+        rest = parsed.path.split("/shorts/", 1)[1]
+        vid = rest.split("/", 1)[0]
+        return vid or None
+
     return None
+
+
+def _pick_transcript(video_id: str) -> List[dict]:
+    """Pick the best available transcript segments for a video."""
+    tl = YouTubeTranscriptApi.list_transcripts(video_id)
+
+    # Prefer manually created English variants first
+    for langs in (["en-US", "en"], ["en"]):
+        try:
+            return tl.find_transcript(langs).fetch()
+        except Exception:
+            pass
+
+    # Then try generated English
+    for langs in (["en-US", "en"], ["en"]):
+        try:
+            return tl.find_generated_transcript(langs).fetch()
+        except Exception:
+            pass
+
+    # Fallback: first available transcript in any language
+    return next(iter(tl)).fetch()
 
 
 def get_youtube_transcript(url: str) -> Tuple[str, List[dict]]:
@@ -21,17 +63,17 @@ def get_youtube_transcript(url: str) -> Tuple[str, List[dict]]:
         raise ValueError("Could not parse YouTube video id from URL")
 
     logger.info("Fetching transcript for video_id=%s", video_id)
+
     try:
-        transcript = YouTubeTranscriptApi.get_transcript(video_id)
-        text = " ".join(chunk["text"] for chunk in transcript)
+        transcript = _pick_transcript(video_id)
+        text = " ".join(chunk.get("text", "") for chunk in transcript).strip()
+        if not text:
+            raise ValueError("Transcript was empty")
         return text, transcript
-    except NoTranscriptFound:
-        logger.error("No transcript found for video %s and transcription fallback is disabled", video_id)
+
+    except (NoTranscriptFound, TranscriptsDisabled, VideoUnavailable) as exc:
+        logger.error("Transcript not available for video %s: %s", video_id, exc)
         raise ValueError(
             f"No transcript available for video {video_id}. "
-            "Please ensure the video has captions enabled, or use a different video."
-        )
-
-
-
-
+            "Try a different video, or add an audio-to-text fallback."
+        ) from exc

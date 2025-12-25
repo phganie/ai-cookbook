@@ -3,7 +3,7 @@ Tests for LLM service (Vertex AI integration).
 """
 import json
 from unittest.mock import MagicMock, patch
-
+import google.auth
 import pytest
 
 from app.schemas import RecipeLLMOutput
@@ -242,6 +242,14 @@ class TestVertexAIIntegrationReal:
 
         if not os.getenv("VERTEX_PROJECT_ID"):
             pytest.skip("VERTEX_PROJECT_ID not set")
+
+        try:
+            google.auth.default()
+        except Exception:
+            pytest.skip(
+                    "Google Application Default Credentials not found. "
+                    "Run `gcloud auth application-default login` or run this test on Cloud Run."
+            )
 
         result = call_llm_for_recipe(sample_transcript)
             

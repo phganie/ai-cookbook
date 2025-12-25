@@ -100,4 +100,6 @@ def get_recipe_endpoint(recipe_id: str, db: Session = Depends(get_db)):
         notes=recipe.notes,
     )
 
-
+@app.get("/health")
+def health():
+    return {"ok": True}
