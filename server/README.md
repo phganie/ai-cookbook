@@ -57,8 +57,9 @@ Required variables:
 - `VERTEX_MODEL` (optional, default: `gemini-2.5-flash`)
 - `DATABASE_URL` (optional, default: `sqlite:///./cookclip.db`)
 
-Optional audio fallback variables:
-- `ENABLE_AUDIO_FALLBACK` (optional, default: `0`) - Set to `1` to enable audio transcription fallback
+Optional audio transcription variables:
+- `ENABLE_AUDIO_TRANSCRIPTION` (optional, default: `0`) - Set to `1` to enable audio download and transcription (local dev only, disabled in production)
+- `ENABLE_AUDIO_FALLBACK` (optional, default: `0`) - Deprecated, use `ENABLE_AUDIO_TRANSCRIPTION` instead
 - `GCP_PROJECT_ID` (optional) - GCP project for Speech-to-Text (reuses `VERTEX_PROJECT_ID` if not set)
 - `GCP_LOCATION` (optional, default: `us-central1`) - GCP location for Speech-to-Text
 - `STT_LANGUAGE_CODE` (optional, default: `en-US`) - Language code for transcription
@@ -84,23 +85,27 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 API available at `http://localhost:8000`
 
-### Audio Transcription Fallback
+### Transcript Extraction (Production-Safe)
 
-When YouTube captions are unavailable, the backend can automatically fall back to audio transcription using Google Cloud Speech-to-Text.
+The backend uses a production-safe fallback order for transcript extraction:
 
-**How it works:**
-1. First, attempt to fetch captions from YouTube (fast, free)
-2. If captions fail and `ENABLE_AUDIO_FALLBACK=1`:
-   - Download audio using `yt-dlp`
-   - Transcribe using Google Cloud Speech-to-Text
-   - Continue with recipe extraction
+**Fallback Order:**
+1. **yt-dlp captions** (--skip-download, no audio) - Production-safe, avoids bot detection
+2. **youtube-transcript-api** - Alternative captions source
+3. **Metadata-based generation** - Uses video title/description (always available)
+4. **Audio transcription** - ONLY if `ENABLE_AUDIO_TRANSCRIPTION=1` (local dev only)
 
-**Setup:**
-- Set `ENABLE_AUDIO_FALLBACK=1` in your `.env`
+**Production Configuration:**
+- Set `ENABLE_AUDIO_TRANSCRIPTION=0` (or omit) in Cloud Run environment variables
+- Audio downloads are **disabled** in production to avoid YouTube bot detection
+- Falls back gracefully to metadata-based recipe generation
+
+**Local Development:**
+- Set `ENABLE_AUDIO_TRANSCRIPTION=1` in your `.env` to enable audio transcription
 - Ensure `GCP_PROJECT_ID` (or `VERTEX_PROJECT_ID`) is set
 - Authenticate with `gcloud auth application-default login`
 
-**Note:** Audio transcription incurs Google Cloud costs and is slower than captions. Use only when necessary.
+**Note:** Audio transcription incurs Google Cloud costs and is slower than captions. It's disabled by default in production.
 
 ## Production Deployment (Cloud Run)
 
@@ -145,7 +150,8 @@ Set via Cloud Run console or `gcloud`:
 - `VERTEX_MODEL` - Model name (e.g., `gemini-2.5-flash`)
 - `DATABASE_URL` - Database connection string (use Secret Manager for sensitive values)
 - `ENVIRONMENT` - Set to `production`
-- `ENABLE_AUDIO_FALLBACK` (optional) - Set to `1` to enable audio fallback
+- `ENABLE_AUDIO_TRANSCRIPTION` (optional, default: `0`) - Set to `1` to enable audio transcription (local dev only)
+- `ENABLE_AUDIO_FALLBACK` (optional, deprecated) - Use `ENABLE_AUDIO_TRANSCRIPTION` instead
 - `GCP_PROJECT_ID` (optional) - GCP project for Speech-to-Text
 - `STT_LANGUAGE_CODE` (optional) - Language code for transcription (default: `en-US`)
 - `STT_MAX_AUDIO_SECONDS` (optional) - Maximum audio duration (default: `600`)

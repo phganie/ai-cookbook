@@ -101,6 +101,7 @@ async def extract_recipe(payload: ExtractRequest):
     
     try:
         # Get transcript (this is the main bottleneck)
+        # New fallback order: yt-dlp captions → youtube-transcript-api → metadata → audio (if enabled)
         transcript_text, _segments, source = await loop.run_in_executor(
             None,
             get_transcript_with_fallback,
@@ -110,29 +111,32 @@ async def extract_recipe(payload: ExtractRequest):
     except ValueError as exc:
         error_msg = str(exc)
         if "NO_TRANSCRIPT_AVAILABLE" in error_msg:
-            # Try metadata fallback
+            # All transcript methods failed, try metadata fallback
             logger.info("No transcript available, attempting metadata-based recipe generation")
             metadata_for_fallback = await metadata_future
             if not metadata_for_fallback or not metadata_for_fallback.title:
-                raise HTTPException(status_code=400, detail="NO_TRANSCRIPT_AVAILABLE") from exc
+                raise HTTPException(
+                    status_code=400, 
+                    detail="Could not extract transcript or fetch video metadata. Please ensure the video is accessible and has a title."
+                ) from exc
             # Continue to metadata-based generation below
             source = "metadata"
+            transcript_text = None  # Will use metadata instead
         else:
             raise HTTPException(status_code=400, detail=error_msg) from exc
-    except RuntimeError as exc:
-        error_msg = str(exc)
-        if "AUDIO_TRANSCRIPTION_FAILED" in error_msg:
-            # Try metadata fallback
-            logger.info("Audio transcription failed, attempting metadata-based recipe generation")
-            metadata_for_fallback = await metadata_future
-            if not metadata_for_fallback or not metadata_for_fallback.title:
-                raise HTTPException(status_code=502, detail="AUDIO_TRANSCRIPTION_FAILED") from exc
-            # Continue to metadata-based generation below
-            source = "metadata"
-        else:
-            raise HTTPException(status_code=500, detail="Failed to get transcript") from exc
     except Exception as exc:  # noqa: BLE001
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        logger.exception("Unexpected error getting transcript")
+        # Try metadata fallback as last resort
+        try:
+            metadata_for_fallback = await metadata_future
+            if metadata_for_fallback and metadata_for_fallback.title:
+                logger.info("Falling back to metadata after unexpected error")
+                source = "metadata"
+                transcript_text = None
+            else:
+                raise HTTPException(status_code=500, detail=f"Failed to get transcript: {str(exc)}") from exc
+        except Exception as metadata_exc:
+            raise HTTPException(status_code=500, detail=f"Failed to get transcript: {str(exc)}") from exc
 
     # Extract recipe from transcript or metadata
     try:

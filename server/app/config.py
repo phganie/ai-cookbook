@@ -22,6 +22,8 @@ class Settings(BaseModel):
 
     # Audio transcription fallback
     enable_audio_fallback: bool = False
+    # Separate flag for audio transcription (disabled in production by default)
+    enable_audio_transcription: bool = False
     gcp_project_id: str | None = None
     gcp_location: str = "us-central1"
     stt_language_code: str = "en-US"
@@ -58,6 +60,7 @@ def get_settings() -> Settings:
         youtube_cookie=os.getenv("YOUTUBE_COOKIE"),
         environment=os.getenv("ENVIRONMENT", "development"),
         enable_audio_fallback=os.getenv("ENABLE_AUDIO_FALLBACK", "0") == "1",
+        enable_audio_transcription=os.getenv("ENABLE_AUDIO_TRANSCRIPTION", "0") == "1",
         gcp_project_id=gcp_project_id,
         gcp_location=os.getenv("GCP_LOCATION", "us-central1"),
         stt_language_code=os.getenv("STT_LANGUAGE_CODE", "en-US"),

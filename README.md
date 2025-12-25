@@ -270,7 +270,8 @@ The app will be available at `http://localhost:3000`
 | `GOOGLE_OAUTH_CLIENT_ID` | No | - | Google OAuth client ID (for Google sign-in) |
 | `GOOGLE_OAUTH_CLIENT_SECRET` | No | - | Google OAuth client secret |
 | `GOOGLE_OAUTH_REDIRECT_URI` | No | - | Google OAuth redirect URI |
-| `ENABLE_AUDIO_FALLBACK` | No | `0` | Set to `1` to enable audio transcription fallback |
+| `ENABLE_AUDIO_TRANSCRIPTION` | No | `0` | Set to `1` to enable audio transcription (local dev only, disabled in production) |
+| `ENABLE_AUDIO_FALLBACK` | No | `0` | Deprecated, use `ENABLE_AUDIO_TRANSCRIPTION` instead |
 | `GCP_PROJECT_ID` | No | - | GCP project for Speech-to-Text (reuses VERTEX_PROJECT_ID) |
 | `GCP_LOCATION` | No | `us-central1` | GCP location for Speech-to-Text |
 | `STT_LANGUAGE_CODE` | No | `en-US` | Language code for transcription |
