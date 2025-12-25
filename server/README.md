@@ -54,7 +54,7 @@ cp .env.example .env
 Required variables:
 - `VERTEX_PROJECT_ID` - Your Google Cloud project ID
 - `VERTEX_LOCATION` (optional, default: `us-central1`)
-- `VERTEX_MODEL` (optional, default: `gemini-1.5-flash`)
+- `VERTEX_MODEL` (optional, default: `gemini-2.5-flash`)
 - `DATABASE_URL` (optional, default: `sqlite:///./cookclip.db`)
 
 Optional audio fallback variables:
@@ -142,7 +142,7 @@ Set via Cloud Run console or `gcloud`:
 
 - `VERTEX_PROJECT_ID` - Your GCP project ID
 - `VERTEX_LOCATION` - Vertex AI region (e.g., `us-central1`)
-- `VERTEX_MODEL` - Model name (e.g., `gemini-1.5-flash`)
+- `VERTEX_MODEL` - Model name (e.g., `gemini-2.5-flash`)
 - `DATABASE_URL` - Database connection string (use Secret Manager for sensitive values)
 - `ENVIRONMENT` - Set to `production`
 - `ENABLE_AUDIO_FALLBACK` (optional) - Set to `1` to enable audio fallback

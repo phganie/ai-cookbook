@@ -104,6 +104,12 @@ def call_llm_for_recipe(
     initialize_vertex_ai()
 
     model_name = model or settings.vertex_model
+    
+    # Normalize model name to lowercase (Vertex AI model names are case-sensitive)
+    model_name = model_name.lower()
+    
+    # Log the actual model name being used
+    logger.info("Using Vertex AI model: %s (from settings: %s)", model_name, settings.vertex_model)
 
     full_prompt = (
         "SYSTEM INSTRUCTIONS:\n"

@@ -99,7 +99,7 @@ class TestLLMRecipeExtraction:
         # Setup mocks
         mock_settings = MagicMock()
         mock_settings.vertex_project_id = "test-project"
-        mock_settings.vertex_model = "gemini-1.5-flash"
+        mock_settings.vertex_model = "gemini-2.5-flash"
         mock_get_settings.return_value = mock_settings
 
         # Mock Vertex AI response
@@ -130,7 +130,7 @@ class TestLLMRecipeExtraction:
         """Test recipe extraction with markdown-wrapped JSON."""
         mock_settings = MagicMock()
         mock_settings.vertex_project_id = "test-project"
-        mock_settings.vertex_model = "gemini-1.5-flash"
+        mock_settings.vertex_model = "gemini-2.5-flash"
         mock_get_settings.return_value = mock_settings
 
         # Response wrapped in markdown
@@ -155,7 +155,7 @@ class TestLLMRecipeExtraction:
         """Test handling of empty response."""
         mock_settings = MagicMock()
         mock_settings.vertex_project_id = "test-project"
-        mock_settings.vertex_model = "gemini-1.5-flash"
+        mock_settings.vertex_model = "gemini-2.5-flash"
         mock_get_settings.return_value = mock_settings
 
         mock_response = MagicMock()
@@ -177,7 +177,7 @@ class TestLLMRecipeExtraction:
         """Test handling of invalid JSON response."""
         mock_settings = MagicMock()
         mock_settings.vertex_project_id = "test-project"
-        mock_settings.vertex_model = "gemini-1.5-flash"
+        mock_settings.vertex_model = "gemini-2.5-flash"
         mock_get_settings.return_value = mock_settings
 
         mock_response = MagicMock()
@@ -199,7 +199,7 @@ class TestLLMRecipeExtraction:
         """Test retry logic on errors."""
         mock_settings = MagicMock()
         mock_settings.vertex_project_id = "test-project"
-        mock_settings.vertex_model = "gemini-1.5-flash"
+        mock_settings.vertex_model = "gemini-2.5-flash"
         mock_get_settings.return_value = mock_settings
 
         mock_response = MagicMock()

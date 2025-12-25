@@ -56,7 +56,7 @@ def mock_settings(monkeypatch) -> Settings:
     settings = Settings(
         vertex_project_id="test-project",
         vertex_location="us-central1",
-        vertex_model="gemini-1.5-flash",
+        vertex_model="gemini-2.5-flash",
         database_url="sqlite:///./test.db",
         youtube_cookie=None,
         environment="test",
@@ -68,7 +68,7 @@ def mock_settings(monkeypatch) -> Settings:
     # Monkeypatch environment variables
     monkeypatch.setenv("VERTEX_PROJECT_ID", "test-project")
     monkeypatch.setenv("VERTEX_LOCATION", "us-central1")
-    monkeypatch.setenv("VERTEX_MODEL", "gemini-1.5-flash")
+    monkeypatch.setenv("VERTEX_MODEL", "gemini-2.5-flash")
     monkeypatch.setenv("ENVIRONMENT", "test")
     
     return settings

@@ -13,7 +13,7 @@ class Settings(BaseModel):
     # Vertex AI Configuration
     vertex_project_id: str | None = None
     vertex_location: str = "us-central1"
-    vertex_model: str = "gemini-1.5-flash"
+    vertex_model: str = "gemini-2.0-flash"  # Updated: use supported model
 
     # App config
     database_url: str
@@ -44,7 +44,7 @@ def get_settings() -> Settings:
     return Settings(
         vertex_project_id=vertex_project_id,
         vertex_location=os.getenv("VERTEX_LOCATION", "us-central1"),
-        vertex_model=os.getenv("VERTEX_MODEL", "gemini-1.5-flash"),
+        vertex_model=os.getenv("VERTEX_MODEL", "gemini-2.0-flash").lower(),  # Normalize to lowercase
         database_url=os.getenv(
             "DATABASE_URL",
             "sqlite:///./cookclip.db",
