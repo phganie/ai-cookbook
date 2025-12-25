@@ -1,15 +1,11 @@
 import json
 import logging
-from typing import Any, Dict
-
-from vertexai.generative_models import GenerativeModel
-from google.cloud import aiplatform
+from functools import lru_cache
 
 from ..config import get_settings
 from ..schemas import RecipeLLMOutput
 
 logger = logging.getLogger(__name__)
-
 
 EXTRACTION_SYSTEM_PROMPT = """
 You are a meticulous recipe extraction assistant.
@@ -55,22 +51,44 @@ Return ONLY the JSON object, no explanation.
 
 def build_user_prompt(transcript: str) -> str:
     return (
-        "You are given a raw transcript of a cooking video. "
-        "Use it to build a structured recipe. Transcript:\n\n"
+        "You are given a raw transcript of a cooking video.\n"
+        "Build a structured recipe strictly following the JSON schema.\n\n"
+        "TRANSCRIPT:\n"
         f"{transcript}"
     )
 
 
+@lru_cache
 def initialize_vertex_ai() -> None:
     """Initialize Vertex AI with project and location."""
+    # Lazy import to avoid import errors during testing
+    from google.cloud import aiplatform
+    
     settings = get_settings()
     if not settings.vertex_project_id:
         raise RuntimeError("VERTEX_PROJECT_ID is not set")
-    
     aiplatform.init(
         project=settings.vertex_project_id,
         location=settings.vertex_location or "us-central1",
     )
+
+
+def _clean_model_text(text: str) -> str:
+    text = (text or "").strip()
+    if text.startswith("```json"):
+        text = text[7:]
+    if text.startswith("```"):
+        text = text[3:]
+    if text.endswith("```"):
+        text = text[:-3]
+    text = text.strip()
+
+    # Fallback: extract first JSON object
+    start = text.find("{")
+    end = text.rfind("}")
+    if start != -1 and end != -1 and end > start:
+        text = text[start : end + 1]
+    return text.strip()
 
 
 def call_llm_for_recipe(
@@ -78,60 +96,46 @@ def call_llm_for_recipe(
     model: str | None = None,
     max_retries: int = 3,
 ) -> RecipeLLMOutput:
-    """Call Vertex AI Gemini to extract recipe from transcript."""
     settings = get_settings()
     initialize_vertex_ai()
-    
-    # Use model from settings or parameter
+
     model_name = model or settings.vertex_model
-    
-    system_prompt = EXTRACTION_SYSTEM_PROMPT.strip()
-    user_prompt = build_user_prompt(transcript_text)
-    
-    # Combine system and user prompts
-    full_prompt = f"{system_prompt}\n\n{user_prompt}"
+
+    full_prompt = (
+        "SYSTEM INSTRUCTIONS:\n"
+        f"{EXTRACTION_SYSTEM_PROMPT.strip()}\n\n"
+        "USER REQUEST:\n"
+        f"{build_user_prompt(transcript_text)}"
+    )
 
     last_error: Exception | None = None
 
     for attempt in range(1, max_retries + 1):
         try:
-            logger.info("Calling Vertex AI Gemini for recipe extraction attempt=%s, model=%s", attempt, model_name)
+            logger.info("Vertex Gemini extract attempt=%s model=%s", attempt, model_name)
 
-            # Initialize the model with generation config for JSON output
-            model_instance = GenerativeModel(
-                model_name=model_name,
-            )
+            # Lazy import to avoid import errors during testing
+            from vertexai.generative_models import GenerativeModel, GenerationConfig
 
-            # Generate content with JSON response format
+            model_instance = GenerativeModel(model_name=model_name)
+
             response = model_instance.generate_content(
                 full_prompt,
-                generation_config={
-                    "temperature": 0.1,
-                    "response_mime_type": "application/json",
-                },
+                generation_config=GenerationConfig(
+                    temperature=0.1,
+                    response_mime_type="application/json",
+                ),
             )
 
-            content = response.text
+            content = _clean_model_text(response.text)
             if not content:
                 raise ValueError("Empty response from Vertex AI")
 
-            # Clean up the response (remove markdown code blocks if present)
-            content = content.strip()
-            if content.startswith("```json"):
-                content = content[7:]  # Remove ```json
-            if content.startswith("```"):
-                content = content[3:]  # Remove ```
-            if content.endswith("```"):
-                content = content[:-3]  # Remove closing ```
-            content = content.strip()
-
             raw_json = json.loads(content)
-            parsed = RecipeLLMOutput.model_validate(raw_json)
-            return parsed
-        except Exception as exc:  # noqa: BLE001
-            logger.exception("Error during Vertex AI extraction attempt=%s: %s", attempt, exc)
+            return RecipeLLMOutput.model_validate(raw_json)
+
+        except Exception as exc:
+            logger.exception("Vertex extraction attempt=%s failed: %s", attempt, exc)
             last_error = exc
 
-    raise RuntimeError(f"Failed to extract recipe after {max_retries} attempts: {last_error}")  # type: ignore[arg-type]
-
-
+    raise RuntimeError(f"Failed to extract recipe after {max_retries} attempts: {last_error}")

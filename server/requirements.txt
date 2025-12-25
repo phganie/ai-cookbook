@@ -1,12 +1,23 @@
 # CookClip Backend - Production Dependencies
-fastapi>=0.115.0
-uvicorn[standard]>=0.30.0
-sqlalchemy>=2.0.0
-psycopg2-binary>=2.9.0
-python-dotenv>=1.0.0
-google-cloud-aiplatform>=1.38.0
-youtube-transcript-api>=0.6.2
-yt-dlp>=2025.1.0
-whisper>=1.0.0
-pydantic>=2.9.0
+# Core web framework
+fastapi>=0.115.0,<0.116.0
+uvicorn[standard]>=0.30.0,<0.32.0
+
+# Database
+sqlalchemy>=2.0.0,<3.0.0
+psycopg2-binary>=2.9.0,<3.0.0
+
+# Configuration
+python-dotenv>=1.0.0,<2.0.0
+
+# Vertex AI / Google Cloud
+google-cloud-aiplatform>=1.38.0,<2.0.0
+
+# YouTube & Audio
+youtube-transcript-api>=0.6.2,<1.0.0
+# yt-dlp only needed if you want to add audio transcription fallback in the future
+# yt-dlp>=2025.1.0,<2026.0.0
+
+# Data validation
+pydantic>=2.9.0,<3.0.0
 

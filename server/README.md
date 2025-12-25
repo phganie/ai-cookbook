@@ -11,12 +11,16 @@ FastAPI backend for CookClip recipe extraction.
 python -m venv .venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
-# Install dependencies
+# Install production dependencies
 pip install -r requirements.txt
 
-# For development (includes linting tools)
+# For development (includes testing and linting tools)
 pip install -r requirements-dev.txt
 ```
+
+**Note:** Requirements use version ranges (e.g., `>=0.115.0,<0.116.0`) for stability. For production, consider:
+- Using Poetry (Option 2) for better dependency resolution
+- Generating a lock file: `pip freeze > requirements-lock.txt`
 
 ### Option 2: Using Poetry
 

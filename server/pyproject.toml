@@ -13,13 +13,17 @@ psycopg2-binary = "^2.9.0"
 python-dotenv = "^1.0.0"
 google-cloud-aiplatform = "^1.38.0"
 youtube-transcript-api = "^0.6.2"
-yt-dlp = "^2025.1.0"
-whisper = "^1.0.0"
+# yt-dlp only needed if you want to add audio transcription fallback in the future
+# yt-dlp = "^2025.1.0"
 pydantic = "^2.9.0"
 
 [tool.poetry.group.dev.dependencies]
 black = "^24.0.0"
 isort = "^5.13.0"
+pytest = "^7.4.0"
+pytest-asyncio = "^0.21.0"
+pytest-cov = "^4.1.0"
+httpx = "^0.24.0"
 
 [build-system]
 requires = ["poetry-core"]

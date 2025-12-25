@@ -1,0 +1,11 @@
+# CookClip Backend - Locked Production Dependencies
+# This file is auto-generated. Use requirements.txt for development.
+# To generate: pip freeze > requirements-lock.txt
+
+# For production deployments, consider using:
+# pip install -r requirements-lock.txt
+# 
+# Or use Poetry for better dependency resolution:
+# poetry lock
+# poetry install
+
