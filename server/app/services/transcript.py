@@ -9,7 +9,7 @@ from ..config import get_settings
 from .audio_download import download_youtube_audio
 from .stt import transcribe_audio_google
 from .video_metadata import get_video_metadata
-from .youtube import extract_youtube_video_id, get_youtube_transcript
+from .youtube import extract_youtube_video_id, get_youtube_transcript, get_captions_via_youtube_api
 
 logger = logging.getLogger(__name__)
 
@@ -126,7 +126,19 @@ def get_transcript_with_fallback(url: str) -> tuple[str, list[dict] | None, Tran
     
     settings = get_settings()
     
-    # Step 1: Try yt-dlp captions first (production-safe, no audio download)
+    # Step 1: Try YouTube Data API v3 (official API, most reliable if configured)
+    if video_id and settings.youtube_api_key:
+        logger.info("Attempting YouTube Data API v3 captions extraction")
+        youtube_api_captions = get_captions_via_youtube_api(video_id)
+        if youtube_api_captions and youtube_api_captions.strip():
+            logger.info("Successfully retrieved transcript from YouTube Data API v3: %d characters", len(youtube_api_captions))
+            result = (youtube_api_captions, None, "captions")
+            if video_id:
+                _transcript_cache[video_id] = result
+            return result
+        logger.debug("YouTube Data API v3 captions not available")
+    
+    # Step 2: Try yt-dlp captions (production-safe, no audio download)
     logger.info("Attempting yt-dlp captions extraction (no audio download)")
     ytdlp_captions = get_captions_via_ytdlp(url)
     if ytdlp_captions and ytdlp_captions.strip():
@@ -138,7 +150,7 @@ def get_transcript_with_fallback(url: str) -> tuple[str, list[dict] | None, Tran
     
     logger.debug("yt-dlp captions not available, trying youtube-transcript-api")
     
-    # Step 2: Try youtube-transcript-api as fallback (may work when yt-dlp doesn't)
+    # Step 3: Try youtube-transcript-api as fallback (may work when others don't)
     try:
         transcript_text, segments = get_youtube_transcript(url)
         logger.info("Successfully retrieved transcript from youtube-transcript-api")
@@ -149,7 +161,7 @@ def get_transcript_with_fallback(url: str) -> tuple[str, list[dict] | None, Tran
     except Exception as captions_error:
         logger.warning("youtube-transcript-api captions failed: %s", captions_error)
     
-    # Step 3: Try metadata fallback (no audio download, production-safe)
+    # Step 4: Try metadata fallback (no audio download, production-safe)
     logger.info("Captions unavailable, attempting metadata-based recipe generation")
     try:
         metadata = get_video_metadata(url)
@@ -169,7 +181,7 @@ def get_transcript_with_fallback(url: str) -> tuple[str, list[dict] | None, Tran
     except Exception as metadata_error:
         logger.warning("Metadata fallback failed: %s", metadata_error)
     
-    # Step 4: Try audio transcription ONLY if explicitly enabled
+    # Step 5: Try audio transcription ONLY if explicitly enabled
     if not settings.enable_audio_transcription:
         logger.info("Audio transcription disabled (ENABLE_AUDIO_TRANSCRIPTION=false), skipping audio fallback")
         raise ValueError("NO_TRANSCRIPT_AVAILABLE")

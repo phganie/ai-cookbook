@@ -36,55 +36,12 @@ def migrate_database():
         if 'recipes' in inspector.get_table_names():
             columns = [col['name'] for col in inspector.get_columns('recipes')]
             
-            if 'user_id' not in columns:
-                logger.info("Adding 'user_id' column to recipes table...")
-                with engine.connect() as conn:
-                    conn.execute(text("ALTER TABLE recipes ADD COLUMN user_id VARCHAR"))
-                    conn.commit()
-                logger.info("Successfully added 'user_id' column")
-            
             if 'transcript' not in columns:
                 logger.info("Adding 'transcript' column to recipes table...")
                 with engine.connect() as conn:
                     conn.execute(text("ALTER TABLE recipes ADD COLUMN transcript TEXT"))
                     conn.commit()
                 logger.info("Successfully added 'transcript' column")
-            
-            # Add other missing columns that might be needed
-            if 'source_platform' not in columns:
-                logger.info("Adding 'source_platform' column to recipes table...")
-                with engine.connect() as conn:
-                    conn.execute(text("ALTER TABLE recipes ADD COLUMN source_platform VARCHAR DEFAULT 'youtube'"))
-                    conn.commit()
-                logger.info("Successfully added 'source_platform' column")
-            
-            if 'servings' not in columns:
-                logger.info("Adding 'servings' column to recipes table...")
-                with engine.connect() as conn:
-                    conn.execute(text("ALTER TABLE recipes ADD COLUMN servings INTEGER"))
-                    conn.commit()
-                logger.info("Successfully added 'servings' column")
-            
-            if 'missing_info' not in columns:
-                logger.info("Adding 'missing_info' column to recipes table...")
-                with engine.connect() as conn:
-                    conn.execute(text("ALTER TABLE recipes ADD COLUMN missing_info TEXT DEFAULT '[]'"))
-                    conn.commit()
-                logger.info("Successfully added 'missing_info' column")
-            
-            if 'notes' not in columns:
-                logger.info("Adding 'notes' column to recipes table...")
-                with engine.connect() as conn:
-                    conn.execute(text("ALTER TABLE recipes ADD COLUMN notes TEXT DEFAULT '[]'"))
-                    conn.commit()
-                logger.info("Successfully added 'notes' column")
-            
-            if 'created_at' not in columns:
-                logger.info("Adding 'created_at' column to recipes table...")
-                with engine.connect() as conn:
-                    conn.execute(text("ALTER TABLE recipes ADD COLUMN created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP"))
-                    conn.commit()
-                logger.info("Successfully added 'created_at' column")
         
         # Migrate users table
         if 'users' in inspector.get_table_names():

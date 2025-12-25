@@ -2,12 +2,16 @@ import logging
 from typing import List, Tuple
 from urllib.parse import parse_qs, urlparse
 
+from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 from youtube_transcript_api import (
     YouTubeTranscriptApi,
     NoTranscriptFound,
     TranscriptsDisabled,
     VideoUnavailable,
 )
+
+from ..config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -95,3 +99,112 @@ def get_youtube_transcript(url: str) -> Tuple[str, List[dict]]:
             video_id, type(exc).__name__, str(exc)
         )
         raise
+
+
+def get_captions_via_youtube_api(video_id: str) -> str | None:
+    """
+    Fetch captions using YouTube Data API v3 (official API).
+    Requires YOUTUBE_API_KEY to be set.
+    
+    Args:
+        video_id: YouTube video ID
+        
+    Returns:
+        Plain text transcript if available, None otherwise
+    """
+    settings = get_settings()
+    
+    if not settings.youtube_api_key:
+        logger.debug("YOUTUBE_API_KEY not set, skipping YouTube Data API v3")
+        return None
+    
+    try:
+        # Build YouTube API client
+        youtube = build('youtube', 'v3', developerKey=settings.youtube_api_key)
+        
+        # List available captions for the video
+        captions_response = youtube.captions().list(
+            part='snippet',
+            videoId=video_id
+        ).execute()
+        
+        if not captions_response.get('items'):
+            logger.debug("No captions found via YouTube Data API v3 for video_id=%s", video_id)
+            return None
+        
+        # Find English caption (prefer manually created, then auto-generated)
+        caption_id = None
+        for caption in captions_response['items']:
+            lang = caption['snippet'].get('language', '')
+            if lang.startswith('en'):
+                if caption['snippet'].get('trackKind') == 'standard':
+                    # Prefer manually created
+                    caption_id = caption['id']
+                    break
+                elif not caption_id:
+                    # Fallback to auto-generated
+                    caption_id = caption['id']
+        
+        if not caption_id:
+            # Use first available caption
+            caption_id = captions_response['items'][0]['id']
+        
+        # Download the caption track
+        # The download method returns the caption content directly
+        caption_request = youtube.captions().download(
+            id=caption_id,
+            tfmt='srt'  # SRT format is easier to parse
+        )
+        
+        # Execute the request - returns bytes
+        caption_bytes = caption_request.execute()
+        
+        # Decode bytes to string
+        caption_text = caption_bytes.decode('utf-8') if isinstance(caption_bytes, bytes) else str(caption_bytes)
+        
+        # Parse SRT format to extract text
+        # SRT format: number, timestamp, text, blank line
+        lines = caption_text.split('\n')
+        text_lines = []
+        skip_next = False
+        
+        for line in lines:
+            line = line.strip()
+            if not line:
+                skip_next = False
+                continue
+            if skip_next:
+                continue
+            # Check if line is a number (sequence number)
+            if line.isdigit():
+                skip_next = True  # Skip timestamp line next
+                continue
+            # Check if line is a timestamp (contains -->)
+            if '-->' in line:
+                continue
+            # This should be the text
+            text_lines.append(line)
+        
+        transcript_text = ' '.join(text_lines).strip()
+        
+        if transcript_text:
+            logger.info("Successfully retrieved transcript via YouTube Data API v3: %d characters", len(transcript_text))
+            return transcript_text
+        else:
+            logger.warning("YouTube Data API v3 returned empty transcript for video_id=%s", video_id)
+            return None
+            
+    except HttpError as e:
+        error_details = e.error_details[0] if e.error_details else {}
+        reason = error_details.get('reason', 'unknown')
+        
+        if reason == 'quotaExceeded':
+            logger.warning("YouTube Data API v3 quota exceeded")
+        elif reason == 'forbidden':
+            logger.warning("YouTube Data API v3 access forbidden (check API key permissions)")
+        else:
+            logger.warning("YouTube Data API v3 error: %s (reason: %s)", e, reason)
+        return None
+    except Exception as e:
+        logger.warning("YouTube Data API v3 failed for video_id=%s: %s", video_id, e)
+        return None

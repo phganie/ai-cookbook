@@ -16,6 +16,7 @@ google-cloud-aiplatform>=1.38.0,<2.0.0
 # YouTube & Audio
 youtube-transcript-api>=0.6.2,<1.0.0
 yt-dlp>=2025.1.0,<2026.0.0
+google-api-python-client>=2.100.0,<3.0.0
 
 # Google Cloud Speech-to-Text
 google-cloud-speech>=2.21.0,<3.0.0

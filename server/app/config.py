@@ -18,6 +18,7 @@ class Settings(BaseModel):
     # App config
     database_url: str
     youtube_cookie: str | None = None
+    youtube_api_key: str | None = None  # YouTube Data API v3 key
     environment: str = "development"
 
     # Audio transcription fallback
@@ -58,6 +59,7 @@ def get_settings() -> Settings:
             "sqlite:///./cookclip.db",
         ),
         youtube_cookie=os.getenv("YOUTUBE_COOKIE"),
+        youtube_api_key=os.getenv("YOUTUBE_API_KEY"),
         environment=os.getenv("ENVIRONMENT", "development"),
         enable_audio_fallback=os.getenv("ENABLE_AUDIO_FALLBACK", "0") == "1",
         enable_audio_transcription=os.getenv("ENABLE_AUDIO_TRANSCRIPTION", "0") == "1",
