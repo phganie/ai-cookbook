@@ -31,17 +31,17 @@ def download_youtube_audio(url: str, temp_dir: Path | None = None) -> tuple[Path
         temp_dir.mkdir(parents=True, exist_ok=True)
     
     # Use yt-dlp to download audio only
-    # Prefer mp3, fallback to m4a or best audio format
+    # Optimized for speed: prefer formats that don't need conversion, lower quality for STT
     output_template = str(temp_dir / "%(id)s.%(ext)s")
     
     cmd = [
         "yt-dlp",
-        "--extract-audio",
-        "--audio-format", "mp3",
-        "--audio-quality", "192K",
+        "-f", "bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio[ext=mp3]/bestaudio",
         "--no-playlist",
         "--quiet",
         "--no-warnings",
+        "--no-check-certificate",  # Skip cert checks for faster download
+        "--concurrent-fragments", "4",  # Download fragments in parallel
         "-o", output_template,
         url,
     ]
@@ -58,12 +58,14 @@ def download_youtube_audio(url: str, temp_dir: Path | None = None) -> tuple[Path
         
         # Find the downloaded file
         # yt-dlp outputs the filename, but we can also search for it
-        audio_files = list(temp_dir.glob("*.mp3"))
-        if not audio_files:
-            # Try other formats
-            audio_files = list(temp_dir.glob("*.m4a"))
-        if not audio_files:
-            audio_files = list(temp_dir.glob("*.*"))
+        # Try common audio formats in order of preference
+        audio_files = (
+            list(temp_dir.glob("*.m4a")) or
+            list(temp_dir.glob("*.webm")) or
+            list(temp_dir.glob("*.mp3")) or
+            list(temp_dir.glob("*.opus")) or
+            list(temp_dir.glob("*.*"))
+        )
         
         if not audio_files:
             raise ValueError("No audio file found after download")

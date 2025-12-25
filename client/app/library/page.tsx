@@ -1,21 +1,36 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { RecipeListItem } from "@shared/types";
 import { API_BASE_URL } from "@shared/config";
+import { useAuth } from "../contexts/AuthContext";
 
 const API_BASE = API_BASE_URL;
 
 export default function LibraryPage() {
+  const { token, isAuthenticated, isLoading: authLoading } = useAuth();
+  const router = useRouter();
   const [items, setItems] = useState<RecipeListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (authLoading) return;
+    
+    if (!isAuthenticated || !token) {
+      router.push("/auth/login");
+      return;
+    }
+
     async function load() {
       setError(null);
       try {
-        const res = await fetch(`${API_BASE}/api/recipes`);
+        const res = await fetch(`${API_BASE}/api/recipes`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
         if (!res.ok) {
           const body = await res.json().catch(() => ({}));
           throw new Error(body.detail ?? "Failed to load recipes.");
@@ -31,7 +46,7 @@ export default function LibraryPage() {
       }
     }
     void load();
-  }, []);
+  }, [isAuthenticated, token, authLoading, router]);
 
   return (
     <div className="space-y-4">

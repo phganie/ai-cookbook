@@ -16,6 +16,8 @@ export type Ingredient = {
   prep: string | null;
   source: "explicit" | "inferred";
   evidence: Evidence;
+  suggested_amount: number | null;
+  suggested_unit: string | null;
 };
 
 export type Step = {
@@ -24,6 +26,7 @@ export type Step = {
   start_sec: number;
   end_sec: number;
   evidence_quote: string;
+  suggested_text: string | null; // AI-suggested step text when ambiguous
 };
 
 export type RecipeLLMOutput = {
@@ -45,6 +48,7 @@ export type Recipe = {
   steps: Step[];
   missing_info: string[];
   notes: string[];
+  transcript: string | null;
 };
 
 export type RecipeListItem = {
@@ -59,9 +63,41 @@ export type ExtractRequest = {
   url: string;
 };
 
+export type VideoMetadata = {
+  video_id: string;
+  title: string;
+  thumbnail_url: string;
+  author: string;
+  upload_date: string | null;
+  duration: number | null;
+};
+
+export type ExtractResponse = {
+  recipe: RecipeLLMOutput;
+  video_metadata: VideoMetadata | null;
+  transcript: string | null;
+  transcript_source: string | null; // "captions", "audio", or "metadata"
+};
+
+export type AskAIRequest = {
+  recipe_id: string | null;
+  question: string;
+};
+
+export type AskAIFromExtractRequest = {
+  recipe: RecipeLLMOutput;
+  transcript: string | null;
+  question: string;
+};
+
+export type AskAIResponse = {
+  answer: string;
+};
+
 export type RecipeCreateRequest = {
   source_url: string;
   source_platform: string;
   data: RecipeLLMOutput;
+  transcript: string | null;
 };
 

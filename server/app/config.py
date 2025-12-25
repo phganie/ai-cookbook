@@ -1,6 +1,6 @@
 import os
 from functools import lru_cache
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 
 # Load .env only for local development
@@ -27,6 +27,12 @@ class Settings(BaseModel):
     stt_language_code: str = "en-US"
     stt_model: str | None = None
     stt_max_audio_seconds: int = 600
+    
+    # Authentication
+    secret_key: str = Field(default="your-secret-key-change-in-production-min-32-chars")
+    google_oauth_client_id: str | None = None
+    google_oauth_client_secret: str | None = None
+    google_oauth_redirect_uri: str | None = None
 
 
 @lru_cache
@@ -57,4 +63,8 @@ def get_settings() -> Settings:
         stt_language_code=os.getenv("STT_LANGUAGE_CODE", "en-US"),
         stt_model=os.getenv("STT_MODEL") or None,
         stt_max_audio_seconds=int(os.getenv("STT_MAX_AUDIO_SECONDS", "600")),
+        secret_key=os.getenv("SECRET_KEY", "your-secret-key-change-in-production-min-32-chars"),
+        google_oauth_client_id=os.getenv("GOOGLE_OAUTH_CLIENT_ID"),
+        google_oauth_client_secret=os.getenv("GOOGLE_OAUTH_CLIENT_SECRET"),
+        google_oauth_redirect_uri=os.getenv("GOOGLE_OAUTH_REDIRECT_URI"),
     )

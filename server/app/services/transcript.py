@@ -6,19 +6,23 @@ from typing import Literal
 from ..config import get_settings
 from .audio_download import download_youtube_audio
 from .stt import transcribe_audio_google
-from .youtube import get_youtube_transcript
+from .youtube import extract_youtube_video_id, get_youtube_transcript
 
 logger = logging.getLogger(__name__)
 
-TranscriptSource = Literal["captions", "audio"]
+TranscriptSource = Literal["captions", "audio", "metadata"]
+
+# Simple in-memory cache for transcripts (cleared on restart)
+_transcript_cache: dict[str, tuple[str, list[dict] | None, TranscriptSource]] = {}
 
 
 def get_transcript_with_fallback(url: str) -> tuple[str, list[dict] | None, TranscriptSource]:
     """
-    Get transcript with audio fallback.
+    Get transcript with audio fallback and caching.
     
     Tries captions first. If that fails and ENABLE_AUDIO_FALLBACK=1,
     downloads audio and transcribes via Google Speech-to-Text.
+    Results are cached in memory to avoid re-processing the same video.
     
     Args:
         url: YouTube video URL
@@ -33,13 +37,23 @@ def get_transcript_with_fallback(url: str) -> tuple[str, list[dict] | None, Tran
         ValueError: If captions fail and fallback is disabled
         RuntimeError: If audio fallback fails
     """
+    # Check cache first
+    video_id = extract_youtube_video_id(url)
+    if video_id and video_id in _transcript_cache:
+        logger.info("Using cached transcript for video_id=%s", video_id)
+        return _transcript_cache[video_id]
+    
     settings = get_settings()
     
     # Try captions first
     try:
         transcript_text, segments = get_youtube_transcript(url)
         logger.info("Successfully retrieved transcript from captions")
-        return transcript_text, segments, "captions"
+        result = (transcript_text, segments, "captions")
+        # Cache the result
+        if video_id:
+            _transcript_cache[video_id] = result
+        return result
     except Exception as captions_error:
         logger.warning("Captions failed: %s", captions_error)
         
@@ -89,11 +103,37 @@ def get_transcript_with_fallback(url: str) -> tuple[str, list[dict] | None, Tran
                 raise RuntimeError("Transcription returned empty result")
             
             logger.info("Successfully transcribed audio: %d characters", len(transcript_text))
-            return transcript_text, None, "audio"
+            result = (transcript_text, None, "audio")
+            # Cache the result
+            if video_id:
+                _transcript_cache[video_id] = result
+            return result
             
         except Exception as audio_error:
             logger.exception("Audio transcription fallback failed")
-            raise RuntimeError("AUDIO_TRANSCRIPTION_FAILED") from audio_error
+            # Try metadata fallback as last resort
+            logger.info("Attempting metadata-based recipe generation as final fallback")
+            try:
+                from .video_metadata import get_video_metadata
+                metadata = get_video_metadata(url)
+                if metadata and metadata.title:
+                    # Return a placeholder transcript using the video title
+                    # This will be handled specially in the LLM call
+                    placeholder_text = f"Video title: {metadata.title}"
+                    result = (placeholder_text, None, "metadata")
+                    if video_id:
+                        _transcript_cache[video_id] = result
+                    logger.info("Metadata fallback successful, using video title: %s", metadata.title)
+                    return result
+                else:
+                    logger.error("Metadata fallback failed: no metadata or title available")
+                    raise RuntimeError("AUDIO_TRANSCRIPTION_FAILED") from audio_error
+            except RuntimeError:
+                # Re-raise RuntimeError as-is
+                raise
+            except Exception as metadata_error:
+                logger.exception("Metadata fallback also failed: %s", metadata_error)
+                raise RuntimeError("AUDIO_TRANSCRIPTION_FAILED") from audio_error
         finally:
             # Clean up temporary files
             if temp_dir_obj:

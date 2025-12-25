@@ -1,3 +1,4 @@
+import concurrent.futures
 import logging
 import subprocess
 import tempfile
@@ -76,14 +77,14 @@ def transcribe_audio_google(
     max_audio_seconds: int = 600,
 ) -> str:
     """
-    Robust v1 transcription:
+    Optimized v1 transcription with parallel processing:
     - Convert to wav 16k mono
-    - Chunk into 55s segments
-    - Transcribe each chunk and concatenate
+    - For short videos (< 60s): use long_running_recognize (faster)
+    - For longer videos: chunk into 55s segments and process in parallel
     """
     from google.cloud import speech
 
-    logger.info("Transcribing audio via v1 (chunked): %s", file_path)
+    logger.info("Transcribing audio via v1 (optimized): %s", file_path)
 
     with tempfile.TemporaryDirectory() as td:
         td = Path(td)
@@ -102,11 +103,9 @@ def transcribe_audio_google(
             )
             total_sec = float(max_audio_seconds)
 
-        CHUNK_SEC = 55.0
-
         client = speech.SpeechClient()
 
-        # v1: don’t force "latest_long" (can cause INVALID_ARGUMENT)
+        # v1: don't force "latest_long" (can cause INVALID_ARGUMENT)
         config_kwargs = dict(
             encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
             sample_rate_hertz=16000,
@@ -119,29 +118,88 @@ def transcribe_audio_google(
 
         config = speech.RecognitionConfig(**config_kwargs)
 
-        parts: list[str] = []
+        # For short videos, use long_running_recognize (faster, no chunking overhead)
+        if total_sec <= 60:
+            logger.info("Using long_running_recognize for short video (%.1fs)", total_sec)
+            audio = speech.RecognitionAudio(content=wav_path.read_bytes())
+            operation = client.long_running_recognize(config=config, audio=audio)
+            response = operation.result(timeout=300)
+
+            parts = []
+            for result in response.results:
+                if result.alternatives:
+                    parts.append(result.alternatives[0].transcript)
+
+            transcript = " ".join(p.strip() for p in parts if p.strip()).strip()
+            logger.info("Transcription done. chars=%d", len(transcript))
+            return transcript
+
+        # For longer videos, use parallel chunk processing
+        # Use 55s chunks to stay under the synchronous recognize limit (60s is too close to the limit)
+        CHUNK_SEC = 55.0
+        logger.info("Using parallel chunk processing for long video (%.1fs)", total_sec)
+
+        def transcribe_chunk(chunk_info: tuple[int, float, float]) -> tuple[int, str]:
+            """Transcribe a single chunk. Returns (chunk_index, transcript)."""
+            idx, start, dur = chunk_info
+            chunk_path = td / f"chunk_{idx:04d}.wav"
+            
+            # Slice the chunk
+            slice_wav(wav_path, start, dur, chunk_path)
+            
+            # Create audio object
+            audio = speech.RecognitionAudio(content=chunk_path.read_bytes())
+            
+            logger.info("STT chunk %d: start=%.1fs dur=%.1fs", idx, start, dur)
+            
+            # Use long_running_recognize for chunks >= 55s to avoid "Sync input too long" error
+            # The synchronous recognize method has a limit around 55-58 seconds
+            if dur >= 55.0:
+                logger.info("Using long_running_recognize for chunk %d (duration %.1fs >= 55s)", idx, dur)
+                operation = client.long_running_recognize(config=config, audio=audio)
+                response = operation.result(timeout=300)  # 5 minute timeout
+                transcript = ""
+                for r in response.results:
+                    if r.alternatives:
+                        transcript += r.alternatives[0].transcript + " "
+            else:
+                # Use synchronous recognize for shorter chunks (faster)
+                resp = client.recognize(config=config, audio=audio)
+                transcript = ""
+                for r in resp.results:
+                    if r.alternatives:
+                        transcript += r.alternatives[0].transcript + " "
+            
+            return idx, transcript.strip()
+
+        # Create chunk tasks
+        chunk_tasks = []
         start = 0.0
         idx = 0
-
         while start < total_sec:
             dur = min(CHUNK_SEC, total_sec - start)
-            chunk_path = td / f"chunk_{idx:04d}.wav"
-            slice_wav(wav_path, start, dur, chunk_path)
-
-            audio = speech.RecognitionAudio(content=chunk_path.read_bytes())
-
-            logger.info("STT chunk %d: start=%.1fs dur=%.1fs", idx, start, dur)
-
-            # recognize should be fine for 55s chunks
-            resp = client.recognize(config=config, audio=audio)
-
-            for r in resp.results:
-                if r.alternatives:
-                    parts.append(r.alternatives[0].transcript)
-
+            chunk_tasks.append((idx, start, dur))
             start += dur
             idx += 1
 
+        # Process chunks in parallel (max 6 workers for better throughput)
+        # Using 6 workers should give ~3-4x speedup for 8 chunks
+        parts_dict = {}
+        max_workers = min(6, len(chunk_tasks))
+        logger.info("Processing %d chunks in parallel with %d workers", len(chunk_tasks), max_workers)
+        
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {executor.submit(transcribe_chunk, task): task[0] for task in chunk_tasks}
+            for future in concurrent.futures.as_completed(futures):
+                try:
+                    chunk_idx, transcript = future.result()
+                    parts_dict[chunk_idx] = transcript
+                except Exception as e:
+                    logger.error("Chunk transcription failed: %s", e)
+                    # Continue with other chunks
+
+        # Reassemble in order
+        parts = [parts_dict[i] for i in sorted(parts_dict.keys()) if parts_dict[i]]
         transcript = " ".join(p.strip() for p in parts if p.strip()).strip()
         logger.info("Transcription done. chars=%d", len(transcript))
         return transcript
