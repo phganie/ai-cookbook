@@ -55,7 +55,9 @@ class TestVertexAIIntegration:
 
     def setup_method(self):
         """Clear cache before each test."""
-        initialize_vertex_ai.cache_clear()
+        # Only clear if cached
+        if hasattr(initialize_vertex_ai, "cache_clear"):
+            initialize_vertex_ai.cache_clear()
 
     @patch("google.cloud.aiplatform.init")
     @patch("app.services.llm.get_settings")
@@ -87,7 +89,7 @@ class TestVertexAIIntegration:
 class TestLLMRecipeExtraction:
     """Test recipe extraction from transcripts."""
 
-    @patch("vertexai.generative_models.GenerativeModel")
+    @patch("app.services.llm.GenerativeModel")
     @patch("app.services.llm.initialize_vertex_ai")
     @patch("app.services.llm.get_settings")
     def test_call_llm_for_recipe_success(
@@ -119,7 +121,7 @@ class TestLLMRecipeExtraction:
         assert len(result.steps) == 4
         mock_model_instance.generate_content.assert_called_once()
 
-    @patch("vertexai.generative_models.GenerativeModel")
+    @patch("app.services.llm.GenerativeModel")
     @patch("app.services.llm.initialize_vertex_ai")
     @patch("app.services.llm.get_settings")
     def test_call_llm_for_recipe_with_markdown(
@@ -144,7 +146,7 @@ class TestLLMRecipeExtraction:
         assert isinstance(result, RecipeLLMOutput)
         assert result.title == "Chocolate Chip Cookies"
 
-    @patch("vertexai.generative_models.GenerativeModel")
+    @patch("app.services.llm.GenerativeModel")
     @patch("app.services.llm.initialize_vertex_ai")
     @patch("app.services.llm.get_settings")
     def test_call_llm_for_recipe_empty_response(
@@ -166,7 +168,7 @@ class TestLLMRecipeExtraction:
         with pytest.raises(RuntimeError, match="Failed to extract recipe"):
             call_llm_for_recipe("Test transcript", max_retries=1)
 
-    @patch("vertexai.generative_models.GenerativeModel")
+    @patch("app.services.llm.GenerativeModel")
     @patch("app.services.llm.initialize_vertex_ai")
     @patch("app.services.llm.get_settings")
     def test_call_llm_for_recipe_invalid_json(
@@ -188,7 +190,7 @@ class TestLLMRecipeExtraction:
         with pytest.raises(RuntimeError, match="Failed to extract recipe"):
             call_llm_for_recipe("Test transcript", max_retries=1)
 
-    @patch("vertexai.generative_models.GenerativeModel")
+    @patch("app.services.llm.GenerativeModel")
     @patch("app.services.llm.initialize_vertex_ai")
     @patch("app.services.llm.get_settings")
     def test_call_llm_for_recipe_retry_on_error(
@@ -235,35 +237,34 @@ class TestVertexAIIntegrationReal:
         """Test actual Vertex AI call with a real transcript."""
         # Skip if credentials not available
         import os
+        if os.getenv("RUN_VERTEX_INTEGRATION") != "1":
+            pytest.skip("Set RUN_VERTEX_INTEGRATION=1 to run Vertex integration tests")
+
         if not os.getenv("VERTEX_PROJECT_ID"):
-            pytest.skip("VERTEX_PROJECT_ID not set, skipping integration test")
+            pytest.skip("VERTEX_PROJECT_ID not set")
 
-        try:
-            result = call_llm_for_recipe(sample_transcript)
+        result = call_llm_for_recipe(sample_transcript)
             
-            # Verify the result structure
-            assert isinstance(result, RecipeLLMOutput)
-            assert result.title
-            assert len(result.title) > 0
-            assert isinstance(result.ingredients, list)
-            assert isinstance(result.steps, list)
-            assert len(result.steps) > 0
-            
-            # Verify ingredients have required fields
-            for ing in result.ingredients:
-                assert ing.name
-                assert ing.source in ["explicit", "inferred"]
-                assert ing.evidence.start_sec >= 0
-                assert ing.evidence.end_sec >= ing.evidence.start_sec
-            
-            # Verify steps have required fields
-            for step in result.steps:
-                assert step.step_number > 0
-                assert step.text
-                assert step.start_sec >= 0
-                assert step.end_sec >= step.start_sec
-                assert step.evidence_quote
-                
-        except Exception as e:
-            pytest.fail(f"Vertex AI call failed: {e}")
+        # Verify the result structure
+        assert isinstance(result, RecipeLLMOutput)
+        assert result.title
+        assert len(result.title) > 0
+        assert isinstance(result.ingredients, list)
+        assert isinstance(result.steps, list)
+        assert len(result.steps) > 0
 
+        # Verify ingredients have required fields
+        for ing in result.ingredients:
+            assert ing.name
+            assert ing.source in ["explicit", "inferred"]
+            assert ing.evidence.start_sec >= 0
+            assert ing.evidence.end_sec >= ing.evidence.start_sec
+
+        # Verify steps have required fields
+        for step in result.steps:
+            assert step.step_number > 0
+            assert step.text
+            assert step.start_sec >= 0
+            assert step.end_sec >= step.start_sec
+            assert step.evidence_quote
+       
