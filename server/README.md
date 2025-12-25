@@ -57,6 +57,14 @@ Required variables:
 - `VERTEX_MODEL` (optional, default: `gemini-1.5-flash`)
 - `DATABASE_URL` (optional, default: `sqlite:///./cookclip.db`)
 
+Optional audio fallback variables:
+- `ENABLE_AUDIO_FALLBACK` (optional, default: `0`) - Set to `1` to enable audio transcription fallback
+- `GCP_PROJECT_ID` (optional) - GCP project for Speech-to-Text (reuses `VERTEX_PROJECT_ID` if not set)
+- `GCP_LOCATION` (optional, default: `us-central1`) - GCP location for Speech-to-Text
+- `STT_LANGUAGE_CODE` (optional, default: `en-US`) - Language code for transcription
+- `STT_MODEL` (optional) - Speech-to-Text model (e.g., `latest_long`)
+- `STT_MAX_AUDIO_SECONDS` (optional, default: `600`) - Maximum audio duration in seconds (10 minutes)
+
 ### Local Authentication
 
 For local development, authenticate with Google Cloud:
@@ -75,6 +83,24 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 API available at `http://localhost:8000`
+
+### Audio Transcription Fallback
+
+When YouTube captions are unavailable, the backend can automatically fall back to audio transcription using Google Cloud Speech-to-Text.
+
+**How it works:**
+1. First, attempt to fetch captions from YouTube (fast, free)
+2. If captions fail and `ENABLE_AUDIO_FALLBACK=1`:
+   - Download audio using `yt-dlp`
+   - Transcribe using Google Cloud Speech-to-Text
+   - Continue with recipe extraction
+
+**Setup:**
+- Set `ENABLE_AUDIO_FALLBACK=1` in your `.env`
+- Ensure `GCP_PROJECT_ID` (or `VERTEX_PROJECT_ID`) is set
+- Authenticate with `gcloud auth application-default login`
+
+**Note:** Audio transcription incurs Google Cloud costs and is slower than captions. Use only when necessary.
 
 ## Production Deployment (Cloud Run)
 
@@ -119,6 +145,14 @@ Set via Cloud Run console or `gcloud`:
 - `VERTEX_MODEL` - Model name (e.g., `gemini-1.5-flash`)
 - `DATABASE_URL` - Database connection string (use Secret Manager for sensitive values)
 - `ENVIRONMENT` - Set to `production`
+- `ENABLE_AUDIO_FALLBACK` (optional) - Set to `1` to enable audio fallback
+- `GCP_PROJECT_ID` (optional) - GCP project for Speech-to-Text
+- `STT_LANGUAGE_CODE` (optional) - Language code for transcription (default: `en-US`)
+- `STT_MAX_AUDIO_SECONDS` (optional) - Maximum audio duration (default: `600`)
+
+**IAM Roles Required:**
+- For Vertex AI: `roles/aiplatform.user`
+- For Speech-to-Text (if fallback enabled): `roles/cloudspeech.client`
 
 **Note:** The `.env` file is **not used in production**. All configuration comes from Cloud Run environment variables.
 
@@ -130,6 +164,9 @@ python -m pytest
 
 # Run without Vertex AI integration tests
 python -m pytest -m "not vertex_ai"
+
+# Run without audio fallback integration tests
+python -m pytest -m "not audio_fallback"
 
 # Run with coverage
 python -m pytest --cov=app --cov-report=html
@@ -150,6 +187,9 @@ server/
 │   ├── services/
 │   │   ├── llm.py        # Vertex AI integration
 │   │   ├── youtube.py    # YouTube transcript extraction
+│   │   ├── transcript.py # Transcript with audio fallback
+│   │   ├── audio_download.py # YouTube audio download
+│   │   ├── stt.py        # Google Speech-to-Text
 │   │   └── recipes.py    # Recipe database operations
 │   └── tests/            # Test suite
 ├── Dockerfile            # Production container

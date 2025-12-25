@@ -43,15 +43,25 @@ def _pick_transcript(video_id: str) -> List[dict]:
     for langs in (["en-US", "en"], ["en"]):
         try:
             return tl.find_transcript(langs).fetch()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.info(
+                "Manual transcript not found for video_id=%s langs=%s err=%s",
+                video_id,
+                langs,
+                type(exc).__name__,
+            )
 
     # Then try generated English
     for langs in (["en-US", "en"], ["en"]):
         try:
             return tl.find_generated_transcript(langs).fetch()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.info(
+                "Generated transcript not found for video_id=%s langs=%s err=%s",
+                video_id,
+                langs,
+                type(exc).__name__,
+            )
 
     # Fallback: first available transcript in any language
     return next(iter(tl)).fetch()
@@ -72,9 +82,16 @@ def get_youtube_transcript(url: str) -> Tuple[str, List[dict]]:
             raise ValueError("Transcript was empty")
         return text, transcript
 
+    except (NoTranscriptFound, TranscriptsDisabled, VideoUnavailable) as exc:
+        logger.exception(
+            "Transcript unavailable for video_id=%s error_type=%s msg=%s",
+            video_id, type(exc).__name__, str(exc)
+        )
+        raise ValueError(f"NO_TRANSCRIPT_AVAILABLE:{type(exc).__name__}") from exc
+
     except Exception as exc:
-        logger.error("Transcript not available for video %s: %s", video_id, exc)
-        raise ValueError(
-            f"No transcript available for video {video_id}. "
-            "Try a different video, or add an audio-to-text fallback."
-        ) from exc
+        logger.exception(
+            "Transcript fetch failed for video_id=%s error_type=%s msg=%s",
+            video_id, type(exc).__name__, str(exc)
+        )
+        raise

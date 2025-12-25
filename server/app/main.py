@@ -1,13 +1,17 @@
+import logging
+
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
 from .database import Base, engine, get_db
 from .logging_config import setup_logging
+
+logger = logging.getLogger(__name__)
 from .models import Recipe
 from .schemas import ExtractRequest, RecipeCreateRequest, RecipeLLMOutput, RecipeResponse
 from .services.llm import call_llm_for_recipe
-from .services.youtube import get_youtube_transcript
+from .services.transcript import get_transcript_with_fallback
 from .services import recipes as recipe_service
 
 setup_logging()
@@ -27,7 +31,18 @@ app.add_middleware(
 @app.post("/api/extract", response_model=RecipeLLMOutput)
 def extract_recipe(payload: ExtractRequest):
     try:
-        transcript_text, _segments = get_youtube_transcript(payload.url)
+        transcript_text, _segments, source = get_transcript_with_fallback(payload.url)
+        logger.info("Transcript source: %s", source)
+    except ValueError as exc:
+        error_msg = str(exc)
+        if "NO_TRANSCRIPT_AVAILABLE" in error_msg:
+            raise HTTPException(status_code=400, detail="NO_TRANSCRIPT_AVAILABLE") from exc
+        raise HTTPException(status_code=400, detail=error_msg) from exc
+    except RuntimeError as exc:
+        error_msg = str(exc)
+        if "AUDIO_TRANSCRIPTION_FAILED" in error_msg:
+            raise HTTPException(status_code=502, detail="AUDIO_TRANSCRIPTION_FAILED") from exc
+        raise HTTPException(status_code=500, detail="Failed to get transcript") from exc
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
