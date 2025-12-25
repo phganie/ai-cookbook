@@ -202,8 +202,21 @@ def _normalize_llm_output(raw_json: dict) -> dict:
         normalized["steps"] = []
     if "missing_info" not in normalized:
         normalized["missing_info"] = []
+    elif not isinstance(normalized["missing_info"], list):
+        # Convert string to list if LLM returned a string
+        if isinstance(normalized["missing_info"], str):
+            normalized["missing_info"] = [normalized["missing_info"]] if normalized["missing_info"].strip() else []
+        else:
+            normalized["missing_info"] = []
+    
     if "notes" not in normalized:
         normalized["notes"] = []
+    elif not isinstance(normalized["notes"], list):
+        # Convert string to list if LLM returned a string
+        if isinstance(normalized["notes"], str):
+            normalized["notes"] = [normalized["notes"]] if normalized["notes"].strip() else []
+        else:
+            normalized["notes"] = []
     
     # Normalize ingredients
     if "ingredients" in normalized:

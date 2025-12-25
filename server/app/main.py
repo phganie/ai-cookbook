@@ -69,9 +69,14 @@ async def startup_event():
     except Exception as e:
         logger.warning("Failed to pre-initialize Vertex AI: %s", e)
 
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:3000",
+        "https://ai-cookbook-ans-projects-1058c0be.vercel.app",
+        "https://ai-cookbook-two.vercel.app",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
