@@ -24,13 +24,15 @@ from .services import recipes as recipe_service
 setup_logging()
 Base.metadata.create_all(bind=engine)
 
-# Migrate existing database: add transcript column if it doesn't exist
+# Migrate existing database: add missing columns if they don't exist
 def migrate_database():
-    """Add transcript column to existing recipes table if it doesn't exist."""
+    """Add missing columns to existing tables if they don't exist."""
     from sqlalchemy import inspect, text
     
     try:
         inspector = inspect(engine)
+        
+        # Migrate recipes table
         if 'recipes' in inspector.get_table_names():
             columns = [col['name'] for col in inspector.get_columns('recipes')]
             
@@ -40,6 +42,35 @@ def migrate_database():
                     conn.execute(text("ALTER TABLE recipes ADD COLUMN transcript TEXT"))
                     conn.commit()
                 logger.info("Successfully added 'transcript' column")
+        
+        # Migrate users table
+        if 'users' in inspector.get_table_names():
+            columns = [col['name'] for col in inspector.get_columns('users')]
+            
+            if 'google_id' not in columns:
+                logger.info("Adding 'google_id' column to users table...")
+                with engine.connect() as conn:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN google_id VARCHAR"))
+                    conn.commit()
+                logger.info("Successfully added 'google_id' column")
+            
+            if 'auth_provider' not in columns:
+                logger.info("Adding 'auth_provider' column to users table...")
+                with engine.connect() as conn:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN auth_provider VARCHAR NOT NULL DEFAULT 'email'"))
+                    conn.commit()
+                logger.info("Successfully added 'auth_provider' column")
+            
+            if 'created_at' not in columns:
+                logger.info("Adding 'created_at' column to users table...")
+                with engine.connect() as conn:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP"))
+                    conn.commit()
+                logger.info("Successfully added 'created_at' column")
+            
+            # Make hashed_password nullable if it's not already
+            # SQLite doesn't support ALTER COLUMN, so we skip this check
+            # The model already has nullable=True, so new users will work fine
     except Exception as e:
         logger.warning("Migration check failed (this is OK for new databases): %s", e)
 

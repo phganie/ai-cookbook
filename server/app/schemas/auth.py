@@ -10,8 +10,10 @@ def validate_password_strength(password: str) -> str:
     
     if len(password) < 8:
         errors.append("Password must be at least 8 characters long")
-    if len(password) > 128:
-        errors.append("Password must be less than 128 characters")
+    # Limit to 72 characters to avoid bcrypt's 72-byte limit
+    # (1 character = 1 byte for ASCII, but Unicode can be more)
+    if len(password) > 72:
+        errors.append("Password must be less than 72 characters")
     if not any(c.isupper() for c in password):
         errors.append("Password must contain at least one uppercase letter")
     if not any(c.islower() for c in password):
@@ -32,7 +34,7 @@ class UserBase(BaseModel):
 
 
 class UserCreate(UserBase):
-    password: str = Field(min_length=8, max_length=128)
+    password: str = Field(min_length=8, max_length=72)
     
     @field_validator("password")
     @classmethod
