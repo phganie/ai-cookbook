@@ -294,7 +294,7 @@ export default function SignupPage() {
                   )}
                   {passwordStrength.feedback.suggestions.length > 0 && (
                     <ul className="text-xs text-slate-400 mt-1 list-disc list-inside">
-                      {passwordStrength.feedback.suggestions.slice(0, 2).map((suggestion, idx) => (
+                      {passwordStrength.feedback.suggestions.slice(0, 2).map((suggestion: string, idx: number) => (
                         <li key={idx}>{suggestion}</li>
                       ))}
                     </ul>
